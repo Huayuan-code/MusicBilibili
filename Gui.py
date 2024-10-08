@@ -100,14 +100,14 @@ window = tk.Tk()
 window.title('BMusic')
 window.geometry("600x500+100+50")
 
-
+download_thread_list = []
 def shutDown():
-    if len(threading.enumerate()) > 2:
+    if download_thread_list:
         print(f"nnum={len(threading.enumerate())}")
         if tk.messagebox.askokcancel("有下载任务进行中", "确定要退出吗？"):
             window.destroy()
     #销毁root窗   
-    window.destroy()
+    else: window.destroy()
     
 
 window.protocol("WM_DELETE_WINDOW", shutDown)
@@ -116,15 +116,64 @@ playing_frame =  tk.Frame(window,bg='red')
 list_frame = tk.Frame(window,bg='yellow')
 search_frame = tk.Frame(window,bg='blue')
 favor_frame = tk.Frame(window,bg='red')
-up_frame= tk.Frame(window,bg='yellow')
+up_frame= tk.Frame(window,bg='yellow') 
+download_frame = tk.Frame(window, bg='blue')
 
+#下载列表界面
+download_label =  tk.Label(download_frame, text='下载中数量：', font=('Arial', 12),  height=1,)
+download_scrollbar = tk.Scrollbar(download_frame) #滚动条
+download_listbox = tk.Listbox(download_frame, yscrollcommand=download_scrollbar.set)
 
+download_label.pack(side='top', fill='x', expand=0)
+download_listbox.pack(side='left', fill='both', expand=1)
+download_scrollbar.pack(side='right', fill='y')
+download_scrollbar.config(command=download_listbox.yview)
+
+download_list = [] #存储下载连接
+download_title = []
+
+download_list_lock = False
+def downloadThread():
+    global download_list_lock
+    while True:
+        if len(download_thread_list) <  6 and download_list and not download_list_lock:
+            download_list_lock = True
+            thread1 = threading.Thread(target=Bi.getMp3, args=(download_list[0],))  
+            download_thread_list.append(thread1)
+            download_thread_list[-1].start()
+            download_list.pop(0)
+            download_title.pop(0)
+            download_listbox.delete(0)
+            download_list_lock = False
+            print(f"xianchengshu:{len(threading.enumerate())}")
+
+        download_listbox.selection_clear(0, 'end') 
+               
+        for i in range(len(download_thread_list) - 1, -1, -1):
+            if not download_thread_list[i].is_alive():
+                download_thread_list.pop(i)
+                download_label.config(text=f"下载中数量：{len(download_thread_list)}") 
+
+def showDownloadList():
+    global download_list_lock
+    while True:
+        if not download_list_lock:
+            download_list_lock = True
+            download_listbox.delete(0, 'end')
+            for i in download_title:
+                download_listbox.insert('end', i)
+            download_list_lock = False
+            return
+
+download_thread = threading.Thread(target=downloadThread)  
+download_thread.start()
 
 def changePlayingFrame():
     list_frame.forget()
     search_frame.forget()
     favor_frame.forget()
     up_frame.forget()
+    download_frame.forget()
     playing_frame.pack(fill='both', expand=1, side='left')
 
 def changeListFrame():
@@ -132,6 +181,7 @@ def changeListFrame():
     playing_frame.forget()
     favor_frame.forget()
     up_frame.forget()
+    download_frame.forget()
     list_frame.pack(fill='both', expand=1, side='left')
 
 def changeSearchFrame():
@@ -139,6 +189,7 @@ def changeSearchFrame():
     list_frame.forget()
     favor_frame.forget()
     up_frame.forget()
+    download_frame.forget()
     search_frame.pack(fill='both', expand=1, side='left')
 
 def changeFavorFrame():
@@ -146,6 +197,7 @@ def changeFavorFrame():
     list_frame.forget()
     search_frame.forget()
     up_frame.forget()
+    download_frame.forget()
     favor_frame.pack(fill='both', expand=1, side='left')
 
 def changeUpFrame():
@@ -153,7 +205,16 @@ def changeUpFrame():
     list_frame.forget()
     favor_frame.forget()
     search_frame.forget()
+    download_frame.forget()
     up_frame.pack(fill='both', expand=1, side='left')
+
+def changeDownloadFrame():
+    playing_frame.forget()
+    list_frame.forget()
+    favor_frame.forget()
+    search_frame.forget()
+    up_frame.forget()
+    download_frame.pack(fill='both', expand=1, side='left')
 
 
 is_lock = False 
@@ -189,6 +250,7 @@ tk.Label(section_frame, text=" ").pack(padx=10, fill='x')
 tk.Button(section_frame, text='搜索下载', font=('Arial', 12), width=10, height=1, command=changeSearchFrame).pack(side="top")
 tk.Button(section_frame, text='收藏下载', font=('Arial', 12), width=10, height=1, command=changeFavorFrame).pack(side="top")
 #tk.Button(section_frame, text='主页下载', font=('Arial', 12), width=10, height=1, command=changeUpFrame).pack(side="top")
+tk.Button(section_frame, text='下载列表', font=('Arial', 12), width=10, height=1, command=changeDownloadFrame).pack(side="top")
 section_path_button = tk.Button(section_frame, text='下载地址', font=('Arial', 12), width=10, height=1, command=setSavePath)
 section_path_button.pack(side="top")
 CreateToolTip(section_path_button, "设置音乐的下载地址")
@@ -471,37 +533,30 @@ search_content_frame.pack(side='top', fill='both', expand=1)
 favor_menu_frame = tk.Frame(favor_frame) ##菜单栏
 favor_content_frame = tk.Frame(favor_frame) ##内容栏
 favor_scrollbar = tk.Scrollbar(favor_content_frame) #滚动条
-favor_listbox = tk.Listbox(favor_content_frame, yscrollcommand=favor_scrollbar.set)
+favor_listbox = tk.Listbox(favor_content_frame, yscrollcommand=favor_scrollbar.set, selectmode='multiple')
 favor_entry = tk.Entry(favor_menu_frame, text='', font=('Arial', 12), width=32)
 favor_entry.insert('end', '2421072918')
+favor_download_list = []
 
 def favorDownloadAll():   
-    global favor_all_button
-    favor_all_button.config(state =  'disabled')
-    favor_get_button.config(state =  'disabled')
-    i = 0
-    while i < len(result):
-        if len(threading.enumerate()) <= 5:
-            thread1 = threading.Thread(target=Bi.getMp3, args=('https://www.bilibili.com/video/' + result[i][1],))  
-            thread1.start()
-            i += 1
-            print(f"xianchengshu:{len(threading.enumerate())}")
-    favor_all_button.config(state =  'normal')
-    favor_get_button.config(state =  'normal')
- 
-def creatDownloadThread():
-    thread1 = threading.Thread(target=favorDownloadAll)  
+    for i in range(0, len(result)):
+        download_list.append('https://www.bilibili.com/video/' + result[i][1])
+        download_title.append(result[i][0])
+    thread1 = threading.Thread(target=showDownloadList)
     thread1.start()
+ 
 
 def favorDownload():
     selected_indices = favor_listbox.curselection() 
     if not selected_indices:
         return
-    selected_index = selected_indices[0]
-
-    thread1 = threading.Thread(target=Bi.getMp3, args=('https://www.bilibili.com/video/' + result[selected_index][1],))
-    #thread1 = threading.Thread(Bi.getMp3,  ('https:' + result[selected_index][1])) 
+    #selected_index = selected_indices[0]
+    for i in selected_indices:
+        download_list.append('https://www.bilibili.com/video/' + result[i][1])
+        download_title.append(result[i][0])
+    thread1 = threading.Thread(target=showDownloadList)
     thread1.start()
+
 
 def favorGet():
     keyword = favor_entry.get()
@@ -520,7 +575,7 @@ def favorGet():
     favor_listbox.bind('<Button-3>', lambda event: popupmenu(event, menu))
 
 
-favor_all_button = tk.Button(favor_menu_frame, text='全部下载', font=('Arial', 12), width=6, height=1, command=creatDownloadThread)
+favor_all_button = tk.Button(favor_menu_frame, text='全部下载', font=('Arial', 12), width=6, height=1, command=favorDownloadAll)
 favor_all_button.pack(side="left")
 favor_get_button = tk.Button(favor_menu_frame, text='获取', font=('Arial', 12), width=6, height=1, command=favorGet)
 favor_get_button.pack(side="left")
@@ -532,6 +587,9 @@ favor_scrollbar.config(command=favor_listbox.yview)
 
 favor_menu_frame.pack(side='top', fill='x', expand=0)
 favor_content_frame.pack(side='top', fill='both', expand=1)
+
+
+
 
 
 

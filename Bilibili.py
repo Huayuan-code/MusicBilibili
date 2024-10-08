@@ -2,7 +2,6 @@
 from ast import Try
 import requests  # 导入用于发送HTTP请求的requests库
 from bs4 import BeautifulSoup # 导入用于解析HTML的BeautifulSoup库
-import pandas as pd # 导入用于处理数据的pandas库
 import re
 import json
 from mutagen.id3 import ID3, TIT2, APIC
@@ -26,13 +25,6 @@ def search(keyword):
 
     # 解析搜索结果
     items = soup.find_all("div", class_="bili-video-card__info __scale-disable")
- 
-    # 创建空的DataFrame，用于存储解析后的数据
-    titles = pd.DataFrame([], columns=['标题'])
-    times = pd.DataFrame([], columns=['发布时间'])
-    urls = pd.DataFrame([], columns=['网址'])
-    ups = pd.DataFrame([], columns=['up主id'])
-    upurls = pd.DataFrame([], columns=['up主首页'])
  
     result = []
     for item in items:
@@ -128,8 +120,8 @@ def getMp3(url):
         return
 
 
-    cmd = f"ffmpeg -i \"{title}temp.mp3\" -metadata TIT3=\"{title}\" -metadata artist=\"{authorliststr}\" \"{title}.mp3\""
-    subprocess.run(cmd,shell=True)
+    cmd = f"ffmpeg -i \"{title}temp.mp3\" -metadata TIT3=\"{title}\" -metadata artist=\"{authorliststr}\" \"{title}.mp3\""  
+    result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  
     print("数据写入成功！")
     os.remove(f"{title}temp.mp3")
 
@@ -137,16 +129,17 @@ def getMp3(url):
     with open (title + ".jpg", mode = "wb") as f :
         f.write(cover_content)
 
-    img = open(title + ".jpg", 'rb')
-    audio = ID3(title + ".mp3")
-    audio.update_to_v23()
-    audio['APIC'] = APIC(
-        encoding = 0,
-        mime = 'image/jpg',
-        type = 3,
-        data = img.read()
-    )
-    audio.save()
+    with open(title + ".jpg", 'rb') as img:
+        audio = ID3(title + ".mp3")
+        audio.update_to_v23()
+        audio['APIC'] = APIC(
+            encoding = 0,
+            mime = 'image/jpg',
+            type = 3,
+            data = img.read()
+        )
+        audio.save()
+    os.remove(f"{title}.jpg")
 
     
 
